@@ -1,0 +1,54 @@
+{
+  "persons": [
+    {
+      "name": "Arto Hellas",
+      "number": "040-123456",
+      "id": "1"
+    },
+    {
+      "name": "Ada Lovelace",
+      "number": "39-44-5323523",
+      "id": "2"
+    },
+    {
+      "name": "Dan Abramov",
+      "number": "12-43-234345",
+      "id": "3"
+    },
+    {
+      "name": "Mary Poppendieck",
+      "number": "39-23-6423122",
+      "id": "4"
+    },
+    {
+      "name": "John Doe",
+      "number": "123-456789",
+      "id": "5"
+    },
+    {
+      "name": "Jane Smith",
+      "number": "987-654321",
+      "id": "6"
+    },
+    {
+      "name": "Alice Johnson",
+      "number": "555-1234",
+      "id": "7"
+    },
+    {
+      "name": "Bob Brown",
+      "number": "555-5678",
+      "id": "8"
+    },
+    {
+      "name": "Charlie Davis",
+      "number": "555-8765",
+      "id": "9"
+    },
+    {
+      "name": "Diana Prince",
+      "number": "555-4321",
+      "id": "10"
+    }
+  ]
+}
