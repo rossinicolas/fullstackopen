@@ -1,17 +1,19 @@
 const express = require('express');
+const cors = require('cors');
+const morgan = require('morgan');
+
 const app = express();
 
-const morgan = require('morgan');
 // Middleware para capturar el body de la solicitud
 // y agregarlo a los logs de morgan
 morgan.token('body', (req) => JSON.stringify(req.body));
 
 app.use(express.json());
+app.use(cors());
+app.use(express.static('build'));
 
 // Configuración de morgan con nuevo formato personalizado
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms :body'));
-
-
 
 let persons = [
       {
