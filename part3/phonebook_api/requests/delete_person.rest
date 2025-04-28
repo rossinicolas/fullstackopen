@@ -1,0 +1,4 @@
+DELETE http://localhost:3001/api/persons/680eb382d7fab048d33d5a16
+Content-Type: application/json
+
+# Replace `1` with the ID of the person you want to delete.

@@ -1,6 +1,8 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
+const mongoose = require('mongoose');
 
 const app = express();
 
@@ -15,58 +17,41 @@ app.use(express.static('dist'));
 // Configuración de morgan con nuevo formato personalizado
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms :body'));
 
-let persons = [
-      {
-        "name": "Arto Hellas",
-        "number": "040-123456",
-        "id": "1"
-      },
-      {
-        "name": "Ada Lovelace",
-        "number": "39-44-5323523",
-        "id": "2"
-      },
-      {
-        "name": "Dan Abramov",
-        "number": "12-43-234345",
-        "id": "3"
-      },
-      {
-        "name": "Mary Poppendieck",
-        "number": "39-23-6423122",
-        "id": "4"
-      },
-      {
-        "name": "John Doe",
-        "number": "123-456789",
-        "id": "5"
-      },
-      {
-        "name": "Jane Smith",
-        "number": "987-654321",
-        "id": "6"
-      },
-      {
-        "name": "Alice Johnson",
-        "number": "555-1234",
-        "id": "7"
-      },
-      {
-        "name": "Bob Brown",
-        "number": "555-5678",
-        "id": "8"
-      },
-      {
-        "name": "Charlie Davis",
-        "number": "555-8765",
-        "id": "9"
-      },
-      {
-        "name": "Diana Prince",
-        "number": "555-4321",
-        "id": "10"
-      }
-    ]
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message);
+
+  if (error.name === 'CastError') {
+    return response.status(400).send({ error: 'malformatted id' });
+  } else if (error.name === 'ValidationError') {
+    return response.status(400).json({ error: error.message });
+  }
+
+  next(error);
+}
+
+mongoose.set('strictQuery', false);
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => {
+    console.log('connected to MongoDB');
+  })
+  .catch((err) => {
+    console.log('error connecting to MongoDB:', err.message);
+  });
+const personSchema = new mongoose.Schema({
+  name: String,
+  number: String,
+  }
+);
+
+personSchema.set('toJSON', {
+    transform: (document, returnedObject) => {
+      returnedObject.id = returnedObject._id.toString()
+      delete returnedObject._id
+      delete returnedObject.__v
+    }
+  })
+
+const Person = mongoose.model('Person', personSchema);
 
     app.get('/', (req, res) => {
         res.send('<h1>Phonebook API</h1>');
@@ -74,7 +59,11 @@ let persons = [
     );
 
     app.get('/api/persons', (req, res) => {
-        res.json(persons);
+      Person.find({})
+        .then(persons => {
+          res.json(persons);
+        })
+        
         }
     );
 
@@ -103,27 +92,37 @@ let persons = [
 
     app.delete('/api/persons/:id', (req, res) => {
         const id = req.params.id;
-        persons = persons.filter(p => p.id !== id);
-        res.status(204).end();
+        Person.findByIdAndDelete(id)
+        .then(() => {
+            console.log(`Deleted person with id: ${id}`);
+            res.status(204).end();
+        }).catch(err=>next(err));
+        
     }
     );
     
-    app.post('/api/persons', (req, res) => {
-        const { name, number } = req.body;
-        if (!name || !number) {
-            return res.status(400).json({ error: 'Name and number are required' });
-        }
-        if (persons.some(p => p.name === name)) {
-            return res.status(400).json({ error: 'Name already exists' });
-        }
-        const id = (Math.random() * 1000).toString();
-        const newPerson = { name, number, id };
-        persons.push(newPerson);
-        res.status(201).json(newPerson);
+    app.post('/api/persons', (request, response) => {
+      const body = request.body
+
+      if (body.name === undefined && body.number === undefined) {
+        return response.status(400).json({ error: 'name and number missing' })
+      }
+      
+      const person = new Person({
+        name: body.name,
+        number: body.number,
+      })
+    
+      person.save().then(savedPerson => {
+        response.json(savedPerson)
+      }).catch(err=>next(err));
+       
     }
     );
+
+    app.use(errorHandler);  
   
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 }
