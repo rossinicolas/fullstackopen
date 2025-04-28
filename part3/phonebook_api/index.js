@@ -2,8 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
-const mongoose = require('mongoose');
-
+const Person = require('./models/person');
 const app = express();
 
 // Middleware para capturar el body de la solicitud
@@ -29,29 +28,6 @@ const errorHandler = (error, request, response, next) => {
   next(error);
 }
 
-mongoose.set('strictQuery', false);
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => {
-    console.log('connected to MongoDB');
-  })
-  .catch((err) => {
-    console.log('error connecting to MongoDB:', err.message);
-  });
-const personSchema = new mongoose.Schema({
-  name: String,
-  number: String,
-  }
-);
-
-personSchema.set('toJSON', {
-    transform: (document, returnedObject) => {
-      returnedObject.id = returnedObject._id.toString()
-      delete returnedObject._id
-      delete returnedObject.__v
-    }
-  })
-
-const Person = mongoose.model('Person', personSchema);
 
     app.get('/', (req, res) => {
         res.send('<h1>Phonebook API</h1>');
@@ -138,7 +114,7 @@ const Person = mongoose.model('Person', personSchema);
         }).catch(err => next(err));
     }
     );
-    
+
     app.use(errorHandler);  
   
 const PORT = process.env.PORT;
