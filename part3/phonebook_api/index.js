@@ -58,11 +58,11 @@ const Person = mongoose.model('Person', personSchema);
         }
     );
 
-    app.get('/api/persons', (req, res) => {
+    app.get('/api/persons', (req, res,next) => {
       Person.find({})
         .then(persons => {
           res.json(persons);
-        })
+        }).catch(err => next(err));
         
         }
     );
@@ -79,18 +79,18 @@ const Person = mongoose.model('Person', personSchema);
         }
     );
 
-    app.get('/api/persons/:id', (req, res) => {
+    app.get('/api/persons/:id', (req, res,next) => {
         const id = req.params.id;
-        const person = persons.find(p => p.id === id);
-        if (person) {
-            res.json(person);
-        } else {
-            res.status(404).send({ error: 'Person not found' });
+        Person.findById(id).then(person => {
+        if (!person) {
+            return res.status(404).send({ error: 'Person not found' });
         }
-    }
-    );
+        res.json(person);
+        }).catch(err => next(err));
+      })    
+    
 
-    app.delete('/api/persons/:id', (req, res) => {
+    app.delete('/api/persons/:id', (req, res,next) => {
         const id = req.params.id;
         Person.findByIdAndDelete(id)
         .then(() => {
@@ -101,7 +101,7 @@ const Person = mongoose.model('Person', personSchema);
     }
     );
     
-    app.post('/api/persons', (request, response) => {
+    app.post('/api/persons', (request, response,next) => {
       const body = request.body
 
       if (body.name === undefined && body.number === undefined) {
@@ -120,6 +120,25 @@ const Person = mongoose.model('Person', personSchema);
     }
     );
 
+    app.put('/api/persons/:id', (req, res,next) => {
+      const id = req.params.id;
+      const body = req.body;
+
+      const person = {
+        name: body.name,
+        number: body.number,
+      }
+
+      Person.findByIdAndUpdate(id, person, { new: true, runValidators: true })
+        .then(updatedPerson => {
+          if (!updatedPerson) {
+            return res.status(404).send({ error: 'Person not found' });
+          }
+          res.json(updatedPerson);
+        }).catch(err => next(err));
+    }
+    );
+    
     app.use(errorHandler);  
   
 const PORT = process.env.PORT;
