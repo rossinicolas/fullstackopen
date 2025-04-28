@@ -26,97 +26,98 @@ const errorHandler = (error, request, response, next) => {
   }
 
   next(error);
+};
+
+
+app.get('/', (req, res) => {
+  res.send('<h1>Phonebook API</h1>');
 }
+);
 
+app.get('/api/persons', (req, res,next) => {
+  Person.find({})
+    .then(persons => {
+      res.json(persons);
+    }).catch(err => next(err));
 
-    app.get('/', (req, res) => {
-        res.send('<h1>Phonebook API</h1>');
-        }
-    );
+}
+);
 
-    app.get('/api/persons', (req, res,next) => {
-      Person.find({})
-        .then(persons => {
-          res.json(persons);
-        }).catch(err => next(err));
-        
-        }
-    );
-
-    app.get('/info', (req, res) => {
-        const date = new Date();
-        const personCount = persons.length;
-        res.send(`
+app.get('/info', (req, res,next) => {
+  Person.countDocuments({}).then(personCount => {
+    const date = new Date();
+    res.send(`
             <div>
                 <p>Phonebook has info for ${personCount} people</p>
                 <p>${date}</p>
             </div>
         `);
-        }
-    );
+  }).catch(err => next(err));
+}
+);
 
-    app.get('/api/persons/:id', (req, res,next) => {
-        const id = req.params.id;
-        Person.findById(id).then(person => {
-        if (!person) {
-            return res.status(404).send({ error: 'Person not found' });
-        }
-        res.json(person);
-        }).catch(err => next(err));
-      })    
-    
-
-    app.delete('/api/persons/:id', (req, res,next) => {
-        const id = req.params.id;
-        Person.findByIdAndDelete(id)
-        .then(() => {
-            console.log(`Deleted person with id: ${id}`);
-            res.status(204).end();
-        }).catch(err=>next(err));
-        
+app.get('/api/persons/:id', (req, res,next) => {
+  const id = req.params.id;
+  Person.findById(id).then(person => {
+    if (!person) {
+      return res.status(404).send({ error: 'Person not found' });
     }
-    );
-    
-    app.post('/api/persons', (request, response,next) => {
-      const body = request.body
+    res.json(person);
+  }).catch(err => next(err));
+});
 
-      if (body.name === undefined && body.number === undefined) {
-        return response.status(400).json({ error: 'name and number missing' })
+
+app.delete('/api/persons/:id', (req, res,next) => {
+  const id = req.params.id;
+  Person.findByIdAndDelete(id)
+    .then(() => {
+      console.log(`Deleted person with id: ${id}`);
+      res.status(204).end();
+    }).catch(err => next(err));
+
+}
+);
+
+app.post('/api/persons', (request, response,next) => {
+  const body = request.body;
+
+  if (body.name === undefined && body.number === undefined) {
+    return response.status(400).json({ error: 'name and number missing' });
+  }
+
+  const person = new Person({
+    name: body.name,
+    number: body.number,
+  });
+
+  person.save().then(savedPerson => {
+    response.json(savedPerson);
+  }).catch(err => next(err));
+
+}
+);
+
+app.put('/api/persons/:id', (req, res,next) => {
+  const id = req.params.id;
+  const body = req.body;
+
+  const person = {
+    name: body.name,
+    number: body.number,
+  };
+
+  Person.findByIdAndUpdate(id, person, { new: true, runValidators: true })
+    .then(updatedPerson => {
+      if (!updatedPerson) {
+        return res.status(404).send({ error: 'Person not found' });
       }
-      
-      const person = new Person({
-        name: body.name,
-        number: body.number,
-      })
-    
-      person.save().then(savedPerson => {
-        response.json(savedPerson)
-      }).catch(err=>next(err));
-       
-    }
-    );
+      res.json(updatedPerson);
+    }).catch(err => next(err));
+}
+);
 
-    app.put('/api/persons/:id', (req, res,next) => {
-      const id = req.params.id;
-      const body = req.body;
+app.use(errorHandler);
 
-      const person = {
-        name: body.name,
-        number: body.number,
-      }
-
-      Person.findByIdAndUpdate(id, person, { new: true, runValidators: true })
-        .then(updatedPerson => {
-          if (!updatedPerson) {
-            return res.status(404).send({ error: 'Person not found' });
-          }
-          res.json(updatedPerson);
-        }).catch(err => next(err));
-    }
-    );
-
-    app.use(errorHandler);  
-  
 const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
