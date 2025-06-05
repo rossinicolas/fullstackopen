@@ -1,36 +1,31 @@
 const { test, describe, beforeEach, after } = require('node:test')
 const mongoose = require('mongoose')
+const jwt = require('jsonwebtoken')
 const supertest = require('supertest')
 const app = require('../app')
 const Blog = require('../models/blog')
 const assert = require('node:assert')
-
+const bcrypt = require('bcrypt')
+const User = require('../models/user')
+const helper = require('./test_helper')
 const api = supertest(app)
 
-const initialBlogs = [
-    {
-        title: "React patterns",
-        author: "Michael Chan",
-        url: "https://reactpatterns.com/",
-        likes: 7
-    },
-    {
-        title: "Go To Statement Considered Harmful",
-        author: "Edsger W. Dijkstra",
-        url: "http://www.u.arizona.edu/~rubinson/copyright_violations/Go_To_Considered_Harmful.html",
-        likes: 5
-    },
-    {
-        title: "Canonical string reduction",
-        author: "Edsger W. Dijkstra",
-        url: "http://www.cs.utexas.edu/~EWD/transcriptions/EWD08xx/EWD808.html",
-        likes: 12
-    }
-]
 
 beforeEach(async () => {
+    await User.deleteMany({})
     await Blog.deleteMany({})
-    await Blog.insertMany(initialBlogs)
+
+    const passwordHash = await bcrypt.hash('sekret', 10)
+    const user = new User({ username: 'root', passwordHash })
+    const savedUser = await user.save()
+
+    // Actualizar los valores iniciales de los blogs con el ID del usuario recién creado
+    const blogsWithUser = helper.initialBlogs.map(blog => ({
+        ...blog,
+        user: savedUser._id // Asociar el blog al usuario recién creado
+    }))
+    console.log('Blogs iniciales con usuario:', blogsWithUser)
+    await Blog.insertMany(blogsWithUser)
 })
 
 describe('GET /api/blogs', () => {
@@ -52,6 +47,14 @@ describe('GET /api/blogs', () => {
 })
 
 describe('POST /api/blogs', () => {
+    let token
+
+    beforeEach(async () => {
+        const user = await User.findOne({ username: 'root' })
+        const userForToken = { username: user.username, id: user._id }
+        token = jwt.sign(userForToken, process.env.SECRET)
+    })
+
     test('a valid blog can be added', async () => {
         const newBlog = {
             title: "New Blog Post",
@@ -64,6 +67,7 @@ describe('POST /api/blogs', () => {
 
         await api
             .post('/api/blogs')
+            .set('Authorization', `Bearer ${token}`)
             .send(newBlog)
             .expect(201)
             .expect('Content-Type', /application\/json/)
@@ -84,6 +88,7 @@ describe('POST /api/blogs', () => {
 
         const response = await api
             .post('/api/blogs')
+            .set('Authorization', `Bearer ${token}`)
             .send(newBlog)
             .expect(201)
             .expect('Content-Type', /application\/json/)
@@ -106,23 +111,53 @@ describe('POST /api/blogs', () => {
 
         await api
             .post('/api/blogs')
+            .set('Authorization', `Bearer ${token}`)
             .send(blogWithoutTitle)
             .expect(400)
 
         await api
             .post('/api/blogs')
+            .set('Authorization', `Bearer ${token}`)
             .send(blogWithoutUrl)
             .expect(400)
+    })
+
+    test('fails with 401 Unauthorized if no token is provided', async () => {
+        const newBlog = {
+            title: "Unauthorized Blog",
+            author: "No Token Author",
+            url: "http://example.com/unauthorized",
+            likes: 0
+        }
+
+        await api
+            .post('/api/blogs')
+            .send(newBlog)
+            .expect(401)
+            .expect('Content-Type', /application\/json/)
+
+        const blogsAtEnd = await api.get('/api/blogs')
+        const titles = blogsAtEnd.body.map(blog => blog.title)
+        assert(!titles.includes(newBlog.title), 'Unauthorized blog should not be added to the database')
     })
 })
 
 describe('DELETE /api/blogs/:id', () => {
+    let token
+
+    beforeEach(async () => {
+        const user = await User.findOne({ username: 'root' })
+        const userForToken = { username: user.username, id: user._id }
+        token = jwt.sign(userForToken, process.env.SECRET)
+    })
+
     test('a blog can be deleted', async () => {
         const blogsAtStart = await api.get('/api/blogs')
         const blogToDelete = blogsAtStart.body[0] // Seleccionar el primer blog
 
         await api
             .delete(`/api/blogs/${blogToDelete.id}`)
+            .set('Authorization', `Bearer ${token}`)
             .expect(204)
 
         const blogsAtEnd = await api.get('/api/blogs')
@@ -155,6 +190,39 @@ describe('PUT /api/blogs/:id', () => {
         assert.strictEqual(updatedBlog.likes, updatedLikes.likes, 'Updated blog does not have the correct number of likes')
     })
 })
+
+describe('when there is initially one user in db', () => {
+    beforeEach(async () => {
+      await User.deleteMany({})
+  
+      const passwordHash = await bcrypt.hash('sekret', 10)
+      const user = new User({ username: 'root', passwordHash })
+  
+      await user.save()
+    })
+
+    test('creation succeeds with a fresh username', async () => {
+        const usersAtStart = await helper.usersInDb()
+    
+        const newUser = {
+          username: 'mluukkai',
+          name: 'Matti Luukkainen',
+          password: 'salainen',
+        }
+    
+        await api
+          .post('/api/users')
+          .send(newUser)
+          .expect(201)
+          .expect('Content-Type', /application\/json/)
+    
+        const usersAtEnd = await helper.usersInDb()
+        assert.strictEqual(usersAtEnd.length, usersAtStart.length + 1)
+    
+        const usernames = usersAtEnd.map(u => u.username)
+        assert(usernames.includes(newUser.username))
+      })
+    })  
 
 after(async () => {
     await mongoose.connection.close()

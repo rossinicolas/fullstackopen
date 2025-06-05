@@ -2,39 +2,76 @@ const blogsRouter = require('express').Router()
 const Blog = require('../models/blog')
 
 blogsRouter.get('/', async (request, response) => {
-    const blogs = await Blog.find({})
+    const blogs = await Blog.find({}).populate('user',{username:1,name:1})
     response.json(blogs)
 })
 
 
 blogsRouter.post('/', async (request, response) => {
     try {
-        const blogData = {
-            ...request.body,
-            likes: request.body.likes === undefined ? 0 : request.body.likes
+        const body = request.body
+        const user = request.user
+
+        // Validar que el usuario esté autenticado
+        if (!user || !user.id) {
+            return response.status(401).json({ error: 'Token incorrecto' })
         }
-        if (!blogData.title || !blogData.url) {
-            return response.status(400).json({ error: 'title and url are required' })
+
+        // Validar que los campos obligatorios estén presentes
+        if (!body.title || !body.url) {
+            return response.status(400).json({ error: 'El titulo y la url son requeridos' })
         }
-        const blog = new Blog(blogData)
+
+        const blog = new Blog({
+            title: body.title,
+            author: body.author,
+            url: body.url,
+            likes: body.likes || 0, // Si no se proporciona likes, se establece en 0    
+            user: user.id // Asignar el ID del usuario autenticado
+        })
+
         const result = await blog.save()
+        user.blogs = user.blogs.concat(result._id)
+        await user.save()
         response.status(201).json(result)
     } catch (error) {
         response.status(400).json({ error: error.message })
     }
 })
 
-blogsRouter.delete('/:id',async (req,res) => {
+blogsRouter.delete('/:id', async (request, response) => {
     try {
-    const {id} = req.params
-    const deletedBlog = await Blog.findByIdAndDelete(id)
-    if(!deletedBlog) {
-        return res.status(404).json({error:'blog not found'})
+        const user = request.user
+        const blogId = request.params.id
+
+        // Validar que el usuario esté autenticado
+        if (!user || !user.id) {
+            return response.status(401).json({ error: 'Token inválido o usuario no autenticado' })
+        }
+
+        // Buscar el blog por ID
+        const blog = await Blog.findById(blogId)
+        if (!blog) {
+            return response.status(404).json({ error: 'El blog no existe' })
+        }
+
+        // Validar que el usuario sea el propietario del blog
+        if (blog.user.toString() !== user.id.toString()) {
+            return response.status(403).json({ error: 'No autorizado para eliminar este blog' })
+        }
+
+        // Eliminar el blog
+        await Blog.findByIdAndDelete(blogId)
+
+        // Actualizar la lista de blogs del usuario
+        user.blogs = user.blogs.filter(blogId => blogId.toString() !== blogId)
+        await user.save()
+
+        response.status(204).end()
+    } catch (error) {
+        console.error(error)
+        response.status(500).json({ error: 'Error interno del servidor' })
     }
-    res.status(204).end()
-} catch (error) {
- res.status(400).json({error:error.message})       
-}
 })
 
 blogsRouter.put('/:id', async (req, res) => {
